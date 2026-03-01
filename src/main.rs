@@ -101,31 +101,37 @@ fn main() {
         .unwrap();
 
     for result in transactions_reader.deserialize() {
-        let transaction: Transaction = result.unwrap();
+        let Ok(transaction) = result else {
+            continue;
+        };
 
         match transaction.transaction_type {
             TransactionType::Deposit => {
-                let account = accounts
-                    .entry(transaction.client)
-                    .or_insert(Account::new(transaction.client));
-
-                account.deposit(transaction.amount.unwrap());
-
-                transactions_history.insert(
-                    transaction.tx,
-                    TransactionRecord::new(transaction.client, transaction.amount.unwrap()),
-                );
+                if let Some(amount) = transaction.amount {
+                    let account = accounts
+                        .entry(transaction.client)
+                        .or_insert(Account::new(transaction.client));
+    
+                    account.deposit(amount);
+    
+                    transactions_history.insert(
+                        transaction.tx,
+                        TransactionRecord::new(transaction.client, amount),
+                    );
+                }
             }
             TransactionType::Withdrawal => {
-                let account = accounts
-                    .entry(transaction.client)
-                    .or_insert(Account::new(transaction.client));
-
-                if account.locked {
-                    continue;
+                if let Some(amount) = transaction.amount {
+                    let account = accounts
+                        .entry(transaction.client)
+                        .or_insert(Account::new(transaction.client));
+    
+                    if account.locked {
+                        continue;
+                    }
+    
+                    account.withdraw(amount);
                 }
-
-                account.withdraw(transaction.amount.unwrap());
             }
             TransactionType::Dispute => {
                 let account = accounts
@@ -137,7 +143,7 @@ fn main() {
                 }
 
                 if let Some(record) = transactions_history.get_mut(&transaction.tx) {
-                    if record.client == transaction.client {
+                    if record.client == transaction.client && !record.is_disputed {
                         account.held += record.amount;
                         account.available -= record.amount;
                         record.is_disputed = true;
@@ -148,10 +154,6 @@ fn main() {
                 let account = accounts
                     .entry(transaction.client)
                     .or_insert(Account::new(transaction.client));
-
-                if account.locked {
-                    continue;
-                }
 
                 if let Some(record) = transactions_history.get_mut(&transaction.tx) {
                     if record.is_disputed && record.client == transaction.client {
@@ -165,10 +167,6 @@ fn main() {
                 let account = accounts
                     .entry(transaction.client)
                     .or_insert(Account::new(transaction.client));
-
-                if account.locked {
-                    continue;
-                }
 
                 if let Some(record) = transactions_history.get_mut(&transaction.tx) {
                     if record.is_disputed && record.client == transaction.client {
