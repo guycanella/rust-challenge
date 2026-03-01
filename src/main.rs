@@ -100,7 +100,7 @@ fn main() {
         .from_path(&file_path)
         .unwrap();
 
-    for result in transactions_reader.deserialize() {
+    for result in transactions_reader.deserialize::<Transaction>() {
         let Ok(transaction) = result else {
             continue;
         };
